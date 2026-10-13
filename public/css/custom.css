@@ -1,0 +1,337 @@
+:root {
+    --gym-sidebar-bg: #0f172a;
+    --gym-sidebar-hover: #1e293b;
+    --gym-sidebar-active: #3b82f6;
+    --gym-sidebar-text: #94a3b8;
+    --gym-sidebar-text-active: #ffffff;
+    --gym-topbar-bg: #ffffff;
+    --gym-accent-primary: #2563eb;
+    --gym-accent-success: #10b981;
+    --gym-accent-warning: #f59e0b;
+    --gym-accent-danger: #ef4444;
+    --gym-bg: #f8fafc;
+    --gym-card-bg: #ffffff;
+    --gym-border: #e2e8f0;
+}
+
+body {
+    background-color: var(--gym-bg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    min-height: 100vh;
+}
+
+/* Layout */
+.app-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Sidebar */
+.app-sidebar {
+    width: 270px;
+    background-color: var(--gym-sidebar-bg);
+    color: var(--gym-sidebar-text);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.25s ease-in-out;
+    z-index: 1040;
+}
+
+.sidebar-brand {
+    padding: 1.25rem 1.5rem;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-brand i {
+    color: #38bdf8;
+    font-size: 1.5rem;
+}
+
+.sidebar-nav {
+    flex-grow: 1;
+    padding: 1rem 0.75rem;
+    overflow-y: auto;
+}
+
+.sidebar-heading {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: #64748b;
+    padding: 0.75rem 0.85rem 0.35rem;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.65rem 0.85rem;
+    color: var(--gym-sidebar-text);
+    text-decoration: none;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.15s ease;
+    margin-bottom: 0.2rem;
+}
+
+.sidebar-link i {
+    width: 20px;
+    text-align: center;
+    font-size: 1.05rem;
+    color: #64748b;
+    transition: color 0.15s ease;
+}
+
+.sidebar-link:hover {
+    background-color: var(--gym-sidebar-hover);
+    color: var(--gym-sidebar-text-active);
+}
+
+.sidebar-link:hover i {
+    color: #38bdf8;
+}
+
+.sidebar-link.active {
+    background-color: #1e3a8a;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.sidebar-link.active i {
+    color: #60a5fa;
+}
+
+.sidebar-user {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+/* Main Content */
+.app-main {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* Topbar */
+.app-topbar {
+    height: 64px;
+    background-color: var(--gym-topbar-bg);
+    border-bottom: 1px solid var(--gym-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+}
+
+.page-content {
+    padding: 1.75rem;
+    flex-grow: 1;
+}
+
+/* Cards & UI Components */
+.gym-card {
+    background: var(--gym-card-bg);
+    border: 1px solid var(--gym-border);
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gym-card-header {
+    padding: 1.15rem 1.35rem;
+    border-bottom: 1px solid var(--gym-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: transparent;
+}
+
+.gym-card-body {
+    padding: 1.35rem;
+}
+
+/* Metric / Stat Card */
+.stat-card {
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    border: 1px solid var(--gym-border);
+    background: #ffffff;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
+
+.stat-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #0f172a;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+/* Badge & Status Styles */
+.badge-status {
+    padding: 0.35em 0.7em;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: capitalize;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.badge-status.active, .badge-status.paid, .badge-status.operational {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.badge-status.expired, .badge-status.unpaid, .badge-status.out_of_order {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+.badge-status.frozen, .badge-status.partial, .badge-status.needs_service {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.badge-status.occupied {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+/* Tables */
+.table-gym th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: #64748b;
+    border-top: none;
+    background-color: #f8fafc;
+    padding: 0.85rem 1rem;
+}
+
+.table-gym td {
+    padding: 0.95rem 1rem;
+    vertical-align: middle;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+/* Kiosk Mode & Member Pass */
+.kiosk-badge-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #ffffff;
+    border-radius: 1rem;
+    padding: 1.75rem;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+}
+
+.id-badge {
+    max-width: 380px;
+    margin: 0 auto;
+    border-radius: 1rem;
+    background: #ffffff;
+    border: 2px solid #e2e8f0;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.id-badge-header {
+    background: #0f172a;
+    color: #ffffff;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+/* Locker Matrix */
+.locker-matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1rem;
+}
+
+.locker-box {
+    border: 2px solid var(--gym-border);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+    background: #ffffff;
+    transition: all 0.15s ease;
+}
+
+.locker-box.available {
+    border-color: #86efac;
+    background-color: #f0fdf4;
+}
+
+.locker-box.occupied {
+    border-color: #93c5fd;
+    background-color: #eff6ff;
+}
+
+.locker-box.maintenance {
+    border-color: #fde047;
+    background-color: #fefce8;
+}
+
+/* Print Optimization */
+@media print {
+    .app-sidebar, .app-topbar, .btn-no-print, nav, .alert {
+        display: none !important;
+    }
+    .app-main, .page-content {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+    .print-only {
+        display: block !important;
+    }
+    .gym-card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+}

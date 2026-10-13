@@ -1,0 +1,16 @@
+/node_modules
+/vendor
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+/.fleet
+/.idea
+/.vscode
+
+# Ensure public/vendor is preserved for offline intranet operation!
+!public/vendor/
