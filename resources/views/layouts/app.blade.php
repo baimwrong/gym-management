@@ -26,87 +26,7 @@
                 </div>
             </div>
 
-            <nav class="sidebar-nav">
-                <div class="sidebar-heading">Operations</div>
-                <a href="{{ route('dashboard') }}" class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                    <i class="fa-solid fa-chart-pie"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="{{ route('attendance.kiosk') }}" class="sidebar-link {{ request()->routeIs('attendance.kiosk') ? 'active' : '' }}">
-                    <i class="fa-solid fa-id-card-clip text-warning"></i>
-                    <span>Access Kiosk</span>
-                </a>
-                <a href="{{ route('attendance.index') }}" class="sidebar-link {{ request()->routeIs('attendance.index') ? 'active' : '' }}">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                    <span>Attendance Log</span>
-                </a>
-
-                <div class="sidebar-heading">Membership</div>
-                <a href="{{ route('members.index') }}" class="sidebar-link {{ request()->routeIs('members.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-users"></i>
-                    <span>Members Directory</span>
-                </a>
-                <a href="{{ route('plans.index') }}" class="sidebar-link {{ request()->routeIs('plans.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-tags"></i>
-                    <span>Membership Plans</span>
-                </a>
-
-                <div class="sidebar-heading">Coaching & Activities</div>
-                <a href="{{ route('classes.index') }}" class="sidebar-link {{ request()->routeIs('classes.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-calendar-days"></i>
-                    <span>Classes & Timetable</span>
-                </a>
-                <a href="{{ route('trainers.index') }}" class="sidebar-link {{ request()->routeIs('trainers.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-user-ninja"></i>
-                    <span>Personal Trainers</span>
-                </a>
-                <a href="{{ route('workouts.index') }}" class="sidebar-link {{ request()->routeIs('workouts.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-clipboard-list"></i>
-                    <span>Workout Routines</span>
-                </a>
-                <a href="{{ route('diets.index') }}" class="sidebar-link {{ request()->routeIs('diets.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-apple-whole"></i>
-                    <span>Nutrition Plans</span>
-                </a>
-
-                <div class="sidebar-heading">Retail & Facility</div>
-                <a href="{{ route('pos.index') }}" class="sidebar-link {{ request()->routeIs('pos.index') ? 'active' : '' }}">
-                    <i class="fa-solid fa-cash-register text-info"></i>
-                    <span>Pro-Shop POS</span>
-                </a>
-                <a href="{{ route('pos.products') }}" class="sidebar-link {{ request()->routeIs('pos.products') ? 'active' : '' }}">
-                    <i class="fa-solid fa-boxes-stacked"></i>
-                    <span>Inventory Catalog</span>
-                </a>
-                <a href="{{ route('invoices.index') }}" class="sidebar-link {{ request()->routeIs('invoices.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-file-invoice-dollar"></i>
-                    <span>Invoices & Billing</span>
-                </a>
-                <a href="{{ route('lockers.index') }}" class="sidebar-link {{ request()->routeIs('lockers.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-key"></i>
-                    <span>Lockers</span>
-                </a>
-                <a href="{{ route('equipment.index') }}" class="sidebar-link {{ request()->routeIs('equipment.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-screwdriver-wrench"></i>
-                    <span>Gym Equipment</span>
-                </a>
-
-                <div class="sidebar-heading">Analytics & Config</div>
-                <a href="{{ route('reports.index') }}" class="sidebar-link {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-chart-line"></i>
-                    <span>Financial Reports</span>
-                </a>
-                @if(auth()->user()?->isManager())
-                <a href="{{ route('import.index') }}" class="sidebar-link {{ request()->routeIs('import.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-file-import text-success"></i>
-                    <span>Bulk Data Import</span>
-                </a>
-                <a href="{{ route('settings.index') }}" class="sidebar-link {{ request()->routeIs('settings.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-sliders"></i>
-                    <span>System Settings</span>
-                </a>
-                @endif
-            </nav>
+            @include('layouts.sidebar-nav')
 
             <div class="sidebar-user">
                 <div class="d-flex align-items-center justify-content-between">
@@ -128,6 +48,43 @@
                 </div>
             </div>
         </aside>
+
+        <!-- Mobile Offcanvas Sidebar -->
+        <div class="offcanvas offcanvas-start text-white d-md-none" tabindex="-1" id="mobileSidebar" aria-labelledby="mobileSidebarLabel" style="width: 280px; background-color: var(--gym-sidebar-bg);">
+            <div class="offcanvas-header border-bottom border-secondary border-opacity-25 py-3">
+                <div class="d-flex align-items-center gap-2" id="mobileSidebarLabel">
+                    <i class="fa-solid fa-dumbbell text-info fs-4"></i>
+                    <div>
+                        <div class="fw-bold text-white fs-6">{{ config('gym.short_name', 'GYMPRO') }}</div>
+                        <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 600;">FITNESS CLUB</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body p-0 d-flex flex-column justify-content-between overflow-y-auto">
+                @include('layouts.sidebar-nav')
+
+                <div class="sidebar-user">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2 overflow-hidden">
+                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; font-weight: 700;">
+                                {{ substr(auth()->user()->name ?? 'U', 0, 1) }}
+                            </div>
+                            <div class="text-truncate">
+                                <div class="text-white fw-semibold small text-truncate">{{ auth()->user()->name ?? 'Staff User' }}</div>
+                                <div class="badge bg-secondary" style="font-size: 0.65rem;">{{ strtoupper(auth()->user()->role ?? 'STAFF') }}</div>
+                            </div>
+                        </div>
+                        <form action="{{ route('logout') }}" method="POST" class="m-0">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-light border-0" title="Logout">
+                                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Main Body -->
         <main class="app-main">

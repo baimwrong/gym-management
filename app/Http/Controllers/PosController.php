@@ -22,11 +22,11 @@ class PosController extends Controller
         }
 
         if ($request->filled('search')) {
-            $term = $request->search;
-            $query->where(function ($q) use ($term) {
-                $q->where('name', 'ilike', "%{$term}%")
-                  ->orWhere('sku', 'ilike', "%{$term}%")
-                  ->orWhere('barcode', 'ilike', "%{$term}%");
+            $termLower = '%' . mb_strtolower(trim($request->search)) . '%';
+            $query->where(function ($q) use ($termLower) {
+                $q->whereRaw('LOWER(name) LIKE ?', [$termLower])
+                  ->orWhereRaw('LOWER(sku) LIKE ?', [$termLower])
+                  ->orWhereRaw('LOWER(barcode) LIKE ?', [$termLower]);
             });
         }
 
@@ -50,75 +50,79 @@ class PosController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated) {
-            $subtotal = 0.00;
-            $itemsToProcess = [];
+        try {
+            return DB::transaction(function () use ($validated) {
+                $subtotal = 0.00;
+                $itemsToProcess = [];
 
-            // Validate inventory and prepare items
-            foreach ($validated['items'] as $itemData) {
-                $product = Product::lockForUpdate()->findOrFail($itemData['product_id']);
-                $qty = (int) $itemData['quantity'];
+                // Validate inventory and prepare items
+                foreach ($validated['items'] as $itemData) {
+                    $product = Product::lockForUpdate()->findOrFail($itemData['product_id']);
+                    $qty = (int) $itemData['quantity'];
 
-                if ($product->stock_quantity < $qty) {
-                    throw new \Exception("Insufficient stock for product '{$product->name}'. Available: {$product->stock_quantity}");
+                    if ($product->stock_quantity < $qty) {
+                        throw new \Exception("Insufficient stock for product '{$product->name}'. Available: {$product->stock_quantity}");
+                    }
+
+                    $lineTotal = round($product->selling_price * $qty, 2);
+                    $subtotal += $lineTotal;
+
+                    // Decrement stock
+                    $product->decrement('stock_quantity', $qty);
+
+                    $itemsToProcess[] = [
+                        'product' => $product,
+                        'quantity' => $qty,
+                        'unit_price' => $product->selling_price,
+                        'total_price' => $lineTotal,
+                    ];
                 }
 
-                $lineTotal = round($product->selling_price * $qty, 2);
-                $subtotal += $lineTotal;
+                $discount = (float) ($validated['discount_amount'] ?? 0.00);
+                $taxRate = (float) config('gym.tax_rate_percentage', 8.5);
+                $taxableAmount = max(0, $subtotal - $discount);
+                $taxAmount = round(($taxableAmount * $taxRate) / 100, 2);
+                $totalAmount = $taxableAmount + $taxAmount;
 
-                // Decrement stock
-                $product->decrement('stock_quantity', $qty);
+                $member = !empty($validated['member_id']) ? Member::find($validated['member_id']) : null;
+                $customerName = $member ? $member->full_name : ($validated['customer_name'] ?? 'Walk-In Customer');
 
-                $itemsToProcess[] = [
-                    'product' => $product,
-                    'quantity' => $qty,
-                    'unit_price' => $product->selling_price,
-                    'total_price' => $lineTotal,
-                ];
-            }
+                $invoiceNumber = BillingService::generateInvoiceNumber();
 
-            $discount = (float) ($validated['discount_amount'] ?? 0.00);
-            $taxRate = (float) config('gym.tax_rate_percentage', 8.5);
-            $taxableAmount = max(0, $subtotal - $discount);
-            $taxAmount = round(($taxableAmount * $taxRate) / 100, 2);
-            $totalAmount = $taxableAmount + $taxAmount;
-
-            $member = !empty($validated['member_id']) ? Member::find($validated['member_id']) : null;
-            $customerName = $member ? $member->full_name : ($validated['customer_name'] ?? 'Walk-In Customer');
-
-            $invoiceNumber = BillingService::generateInvoiceNumber();
-
-            $invoice = Invoice::create([
-                'invoice_number' => $invoiceNumber,
-                'member_id' => $member?->id,
-                'user_id' => auth()->id(),
-                'customer_name' => $customerName,
-                'subtotal' => $subtotal,
-                'tax_amount' => $taxAmount,
-                'discount_amount' => $discount,
-                'total_amount' => $totalAmount,
-                'payment_status' => 'paid',
-                'payment_method' => $validated['payment_method'],
-                'invoice_type' => 'pos_retail',
-                'paid_at' => now(),
-                'notes' => $validated['notes'] ?? 'Pro-Shop Point of Sale Transaction',
-            ]);
-
-            foreach ($itemsToProcess as $item) {
-                InvoiceItem::create([
-                    'invoice_id' => $invoice->id,
-                    'itemable_type' => Product::class,
-                    'itemable_id' => $item['product']->id,
-                    'item_description' => $item['product']->name,
-                    'unit_price' => $item['unit_price'],
-                    'quantity' => $item['quantity'],
-                    'total_price' => $item['total_price'],
+                $invoice = Invoice::create([
+                    'invoice_number' => $invoiceNumber,
+                    'member_id' => $member?->id,
+                    'user_id' => auth()->id(),
+                    'customer_name' => $customerName,
+                    'subtotal' => $subtotal,
+                    'tax_amount' => $taxAmount,
+                    'discount_amount' => $discount,
+                    'total_amount' => $totalAmount,
+                    'payment_status' => 'paid',
+                    'payment_method' => $validated['payment_method'],
+                    'invoice_type' => 'pos_retail',
+                    'paid_at' => now(),
+                    'notes' => $validated['notes'] ?? 'Pro-Shop Point of Sale Transaction',
                 ]);
-            }
 
-            return redirect()->route('invoices.show', $invoice)
-                ->with('success', "Sale completed! Invoice {$invoice->invoice_number} created.");
-        });
+                foreach ($itemsToProcess as $item) {
+                    InvoiceItem::create([
+                        'invoice_id' => $invoice->id,
+                        'itemable_type' => Product::class,
+                        'itemable_id' => $item['product']->id,
+                        'item_description' => $item['product']->name,
+                        'unit_price' => $item['unit_price'],
+                        'quantity' => $item['quantity'],
+                        'total_price' => $item['total_price'],
+                    ]);
+                }
+
+                return redirect()->route('invoices.show', $invoice)
+                    ->with('success', "Sale completed! Invoice {$invoice->invoice_number} created.");
+            });
+        } catch (\Throwable $e) {
+            return back()->withInput()->with('error', 'Checkout failed: ' . $e->getMessage());
+        }
     }
 
     public function products(Request $request)
@@ -130,10 +134,10 @@ class PosController extends Controller
         }
 
         if ($request->filled('search')) {
-            $term = $request->search;
-            $query->where(function ($q) use ($term) {
-                $q->where('name', 'ilike', "%{$term}%")
-                  ->orWhere('sku', 'ilike', "%{$term}%");
+            $termLower = '%' . mb_strtolower(trim($request->search)) . '%';
+            $query->where(function ($q) use ($termLower) {
+                $q->whereRaw('LOWER(name) LIKE ?', [$termLower])
+                  ->orWhereRaw('LOWER(sku) LIKE ?', [$termLower]);
             });
         }
 

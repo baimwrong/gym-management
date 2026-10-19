@@ -314,6 +314,19 @@ body {
     background-color: #fefce8;
 }
 
+/* Mobile Responsiveness */
+@media (max-width: 767.98px) {
+    .app-sidebar {
+        display: none !important;
+    }
+    .app-topbar {
+        padding: 0 1rem;
+    }
+    .page-content {
+        padding: 1rem;
+    }
+}
+
 /* Print Optimization */
 @media print {
     .app-sidebar, .app-topbar, .btn-no-print, nav, .alert {

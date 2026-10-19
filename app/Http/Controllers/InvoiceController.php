@@ -26,12 +26,12 @@ class InvoiceController extends Controller
         }
 
         if ($request->filled('search')) {
-            $term = $request->search;
-            $query->where(function ($q) use ($term) {
-                $q->where('invoice_number', 'ilike', "%{$term}%")
-                  ->orWhere('customer_name', 'ilike', "%{$term}%")
-                  ->orWhereHas('member', function ($m) use ($term) {
-                      $m->search($term);
+            $termLower = '%' . mb_strtolower(trim($request->search)) . '%';
+            $query->where(function ($q) use ($termLower, $request) {
+                $q->whereRaw('LOWER(invoice_number) LIKE ?', [$termLower])
+                  ->orWhereRaw('LOWER(customer_name) LIKE ?', [$termLower])
+                  ->orWhereHas('member', function ($m) use ($request) {
+                      $m->search($request->search);
                   });
             });
         }

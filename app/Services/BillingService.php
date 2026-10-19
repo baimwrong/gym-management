@@ -99,7 +99,22 @@ class BillingService
     {
         $prefix = config('gym.invoice_prefix', 'INV-');
         $year = date('Y');
-        $count = Invoice::whereYear('created_at', $year)->count() + 1;
-        return sprintf('%s%s-%05d', $prefix, $year, $count);
+        $basePattern = sprintf('%s%s-', $prefix, $year);
+
+        $latest = Invoice::where('invoice_number', 'like', $basePattern . '%')
+            ->orderByRaw('LENGTH(invoice_number) DESC, invoice_number DESC')
+            ->value('invoice_number');
+
+        $nextSeq = 1;
+        if ($latest && preg_match('/-(\d+)$/', $latest, $matches)) {
+            $nextSeq = (int) $matches[1] + 1;
+        }
+
+        do {
+            $candidate = sprintf('%s%05d', $basePattern, $nextSeq);
+            $nextSeq++;
+        } while (Invoice::where('invoice_number', $candidate)->exists());
+
+        return $candidate;
     }
 }

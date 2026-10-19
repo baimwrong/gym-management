@@ -245,9 +245,7 @@ class ImportController extends Controller
 
             try {
                 DB::transaction(function () use ($data, $firstName, $lastName, $email, $phone, $allPlans, $defaultPlan, $request, &$importedCount) {
-                    $year = date('Y');
-                    $nextId = (Member::max('id') ?? 0) + 1;
-                    $memberCode = sprintf('GYM-%s-%04d', $year, $nextId);
+                    $memberCode = Member::generateMemberCode();
 
                     $gender = in_array(strtolower(trim($data['gender'] ?? '')), ['male', 'female', 'other'], true) 
                         ? strtolower(trim($data['gender'])) 

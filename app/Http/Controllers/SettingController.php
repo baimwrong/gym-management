@@ -53,6 +53,8 @@ class SettingController extends Controller
             GymSetting::set($key, $val, 'general');
         }
 
+        \Illuminate\Support\Facades\Cache::forget('gym_system_settings');
+
         return back()->with('success', 'Gym system settings updated successfully!');
     }
 }

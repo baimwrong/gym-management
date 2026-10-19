@@ -80,10 +80,7 @@ class MemberController extends Controller
 
         return DB::transaction(function () use ($validated, $request) {
             // Generate unique member code
-            $year = date('Y');
-            $randomSuffix = strtoupper(Str::random(4));
-            $nextId = (Member::max('id') ?? 0) + 1;
-            $memberCode = sprintf('GYM-%s-%04d', $year, $nextId);
+            $memberCode = Member::generateMemberCode();
 
             $member = Member::create([
                 'member_code' => $memberCode,

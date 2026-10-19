@@ -46,7 +46,10 @@
             @forelse($products as $prod)
                 <div class="col-sm-6 col-md-4 col-xl-3">
                     <div class="gym-card h-100 p-3 d-flex flex-column justify-content-between position-relative product-card {{ $prod->stock_quantity <= 0 ? 'opacity-50' : '' }}" 
-                         onclick="{{ $prod->stock_quantity > 0 ? "addToCart({$prod->id}, '".addslashes($prod->name)."', {$prod->selling_price}, {$prod->stock_quantity})" : '' }}"
+                         data-product-id="{{ $prod->id }}"
+                         data-product-name="{{ $prod->name }}"
+                         data-product-price="{{ $prod->selling_price }}"
+                         data-product-stock="{{ $prod->stock_quantity }}"
                          style="cursor: {{ $prod->stock_quantity > 0 ? 'pointer' : 'not-allowed' }}; transition: transform 0.15s ease;">
                         <div>
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -118,20 +121,20 @@
                     <div class="p-3 bg-light rounded border mb-3 small">
                         <div class="d-flex justify-content-between mb-1">
                             <span class="text-muted">Subtotal:</span>
-                            <strong id="cart-subtotal">$0.00</strong>
+                            <strong id="cart-subtotal">{{ config('gym.currency_symbol', '$') }}0.00</strong>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="text-muted">Discount ($):</span>
+                            <span class="text-muted">Discount ({{ config('gym.currency_symbol', '$') }}):</span>
                             <input type="number" step="0.5" min="0" name="discount_amount" id="cart-discount" class="form-control form-control-sm text-end" style="width: 85px;" value="0" oninput="recalculateTotals()">
                         </div>
                         <div class="d-flex justify-content-between mb-1">
                             <span class="text-muted">Estimated Tax ({{ config('gym.tax_rate_percentage') }}%):</span>
-                            <span id="cart-tax">$0.00</span>
+                            <span id="cart-tax">{{ config('gym.currency_symbol', '$') }}0.00</span>
                         </div>
                         <hr class="my-2">
                         <div class="d-flex justify-content-between fs-5 fw-bold text-dark">
                             <span>TOTAL:</span>
-                            <span class="text-primary" id="cart-total">$0.00</span>
+                            <span class="text-primary" id="cart-total">{{ config('gym.currency_symbol', '$') }}0.00</span>
                         </div>
                     </div>
 
@@ -161,6 +164,7 @@
 <script>
 let cart = {};
 const TAX_RATE = {{ (float) config('gym.tax_rate_percentage', 8.5) }} / 100;
+const CURRENCY_SYMBOL = @json(config('gym.currency_symbol', '$'));
 
 function addToCart(id, name, price, maxStock) {
     if (cart[id]) {
@@ -215,13 +219,14 @@ function renderCart() {
 
     items.forEach((item, index) => {
         const lineTotal = (item.price * item.qty).toFixed(2);
+        const safeName = item.name.replace(/</g, '&lt;').replace(/>/g, '&gt;');
         html += `
             <div class="d-flex align-items-center justify-content-between p-2 mb-1 bg-white rounded border small">
                 <input type="hidden" name="items[${index}][product_id]" value="${item.id}">
                 <input type="hidden" name="items[${index}][quantity]" value="${item.qty}">
                 <div class="text-truncate me-2" style="max-width: 130px;">
-                    <div class="fw-bold text-dark text-truncate">${item.name}</div>
-                    <small class="text-muted">$${item.price.toFixed(2)} each</small>
+                    <div class="fw-bold text-dark text-truncate">${safeName}</div>
+                    <small class="text-muted">${CURRENCY_SYMBOL}${item.price.toFixed(2)} each</small>
                 </div>
                 <div class="d-flex align-items-center gap-1">
                     <button type="button" class="btn btn-sm btn-light border py-0 px-2" onclick="updateQty(${item.id}, -1)">-</button>
@@ -229,7 +234,7 @@ function renderCart() {
                     <button type="button" class="btn btn-sm btn-light border py-0 px-2" onclick="updateQty(${item.id}, 1)">+</button>
                 </div>
                 <div class="fw-bold text-end" style="min-width: 55px;">
-                    $${lineTotal}
+                    ${CURRENCY_SYMBOL}${lineTotal}
                 </div>
                 <button type="button" class="btn btn-sm text-danger border-0 p-0 ms-1" onclick="removeFromCart(${item.id})">
                     <i class="fa-solid fa-xmark"></i>
@@ -253,9 +258,22 @@ function recalculateTotals() {
     const tax = taxable * TAX_RATE;
     const total = taxable + tax;
 
-    document.getElementById('cart-subtotal').innerText = '$' + subtotal.toFixed(2);
-    document.getElementById('cart-tax').innerText = '$' + tax.toFixed(2);
-    document.getElementById('cart-total').innerText = '$' + total.toFixed(2);
+    document.getElementById('cart-subtotal').innerText = CURRENCY_SYMBOL + subtotal.toFixed(2);
+    document.getElementById('cart-tax').innerText = CURRENCY_SYMBOL + tax.toFixed(2);
+    document.getElementById('cart-total').innerText = CURRENCY_SYMBOL + total.toFixed(2);
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.product-card').forEach(card => {
+        card.addEventListener('click', function () {
+            const stock = parseInt(this.dataset.productStock, 10);
+            if (stock <= 0) return;
+            const id = parseInt(this.dataset.productId, 10);
+            const name = this.dataset.productName;
+            const price = parseFloat(this.dataset.productPrice);
+            addToCart(id, name, price, stock);
+        });
+    });
+});
 </script>
 @endpush

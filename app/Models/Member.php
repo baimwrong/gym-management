@@ -74,6 +74,11 @@ class Member extends Model
             ->latestOfMany();
     }
 
+    public function currentSubscription(): HasOne
+    {
+        return $this->activeSubscription();
+    }
+
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class)->orderBy('check_in_time', 'desc');
@@ -168,14 +173,38 @@ class Member extends Model
             return $query;
         }
 
-        return $query->where(function ($q) use ($term) {
-            $q->where('first_name', 'ilike', "%{$term}%")
-              ->orWhere('last_name', 'ilike', "%{$term}%")
-              ->orWhere('member_code', 'ilike', "%{$term}%")
-              ->orWhere('email', 'ilike', "%{$term}%")
-              ->orWhere('phone', 'ilike', "%{$term}%")
-              ->orWhere('barcode_value', 'ilike', "%{$term}%")
-              ->orWhere('rfid_card_number', 'ilike', "%{$term}%");
+        $termLower = '%' . mb_strtolower(trim($term)) . '%';
+
+        return $query->where(function ($q) use ($termLower) {
+            $q->whereRaw('LOWER(first_name) LIKE ?', [$termLower])
+              ->orWhereRaw('LOWER(last_name) LIKE ?', [$termLower])
+              ->orWhereRaw('LOWER(member_code) LIKE ?', [$termLower])
+              ->orWhereRaw('LOWER(email) LIKE ?', [$termLower])
+              ->orWhereRaw('LOWER(phone) LIKE ?', [$termLower])
+              ->orWhereRaw('LOWER(barcode_value) LIKE ?', [$termLower])
+              ->orWhereRaw('LOWER(rfid_card_number) LIKE ?', [$termLower]);
         });
+    }
+
+    public static function generateMemberCode(): string
+    {
+        $year = date('Y');
+        $prefix = "GYM-{$year}-";
+
+        $latest = static::where('member_code', 'like', $prefix . '%')
+            ->orderByRaw('LENGTH(member_code) DESC, member_code DESC')
+            ->value('member_code');
+
+        $nextSeq = 1001;
+        if ($latest && preg_match('/-(\d+)$/', $latest, $matches)) {
+            $nextSeq = (int) $matches[1] + 1;
+        }
+
+        do {
+            $candidate = sprintf('%s%04d', $prefix, $nextSeq);
+            $nextSeq++;
+        } while (static::where('member_code', $candidate)->exists());
+
+        return $candidate;
     }
 }
