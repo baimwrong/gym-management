@@ -39,12 +39,17 @@
                             <div class="badge bg-secondary" style="font-size: 0.65rem;">{{ strtoupper(auth()->user()->role ?? 'STAFF') }}</div>
                         </div>
                     </div>
-                    <form action="{{ route('logout') }}" method="POST" class="m-0">
-                        @csrf
-                        <button type="submit" class="btn btn-sm btn-outline-light border-0" title="Logout">
-                            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    <div class="d-flex align-items-center gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-light border-0" data-bs-toggle="modal" data-bs-target="#changePasswordModal" title="Change Password">
+                            <i class="fa-solid fa-key"></i>
                         </button>
-                    </form>
+                        <form action="{{ route('logout') }}" method="POST" class="m-0">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-light border-0" title="Logout">
+                                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </aside>
@@ -75,12 +80,17 @@
                                 <div class="badge bg-secondary" style="font-size: 0.65rem;">{{ strtoupper(auth()->user()->role ?? 'STAFF') }}</div>
                             </div>
                         </div>
-                        <form action="{{ route('logout') }}" method="POST" class="m-0">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-outline-light border-0" title="Logout">
-                                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <div class="d-flex align-items-center gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-light border-0" data-bs-toggle="modal" data-bs-target="#changePasswordModal" title="Change Password">
+                                <i class="fa-solid fa-key"></i>
                             </button>
-                        </form>
+                            <form action="{{ route('logout') }}" method="POST" class="m-0">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-light border-0" title="Logout">
+                                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -164,6 +174,39 @@
                 </div>
             </footer>
         </main>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form action="{{ route('profile.password') }}" method="POST">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold" id="changePasswordModalLabel"><i class="fa-solid fa-key me-2 text-primary"></i> Change Account Password</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-muted">Current Password</label>
+                            <input type="password" name="current_password" class="form-control" required autocomplete="current-password">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-muted">New Password (min 8 characters)</label>
+                            <input type="password" name="new_password" class="form-control" required minlength="8" autocomplete="new-password">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-muted">Confirm New Password</label>
+                            <input type="password" name="new_password_confirmation" class="form-control" required minlength="8" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Update Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Local Offline Scripts -->

@@ -74,22 +74,28 @@ class FitnessClassController extends Controller
             'booking_date' => 'required|date',
         ]);
 
-        $member = Member::with('currentSubscription.plan')->findOrFail($validated['member_id']);
+        $member = Member::findOrFail($validated['member_id']);
 
         // Verify member status
         if ($member->status !== 'active') {
             return back()->with('error', "Member {$member->full_name} is {$member->status} and cannot register for classes.");
         }
 
-        // Verify subscription & plan eligibility
-        $currentSub = $member->currentSubscription;
-        if (!$currentSub) {
-            return back()->with('error', "Member {$member->full_name} does not have an active membership subscription.");
+        // Verify subscription & plan eligibility on the booking date
+        $subOnDate = \App\Models\MemberSubscription::with('plan')
+            ->where('member_id', $member->id)
+            ->where('status', 'active')
+            ->whereDate('start_date', '<=', $validated['booking_date'])
+            ->whereDate('end_date', '>=', $validated['booking_date'])
+            ->first();
+
+        if (!$subOnDate) {
+            return back()->with('error', "Member {$member->full_name} does not have an active membership subscription covering {$validated['booking_date']}.");
         }
 
-        if (!$currentSub->plan || !$currentSub->plan->includes_classes) {
-            $planName = $currentSub->plan?->name ?? 'None';
-            return back()->with('error', "Member's current plan ('{$planName}') does not include fitness classes.");
+        if (!$subOnDate->plan || !$subOnDate->plan->includes_classes) {
+            $planName = $subOnDate->plan?->name ?? 'None';
+            return back()->with('error', "Member's plan ('{$planName}') does not include fitness classes.");
         }
 
         // Verify day of week match

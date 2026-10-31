@@ -25,9 +25,7 @@ class DashboardController extends Controller
         $activeMembers = Member::where('status', 'active')->count();
         
         $todayCheckIns = Attendance::whereDate('check_in_time', $today)->count();
-        $currentlyInside = Attendance::whereDate('check_in_time', $today)
-            ->whereNull('check_out_time')
-            ->count();
+        $currentlyInside = Attendance::currentlyInside()->count();
 
         $monthlyRevenue = Invoice::where('payment_status', 'paid')
             ->where('created_at', '>=', $thisMonth)

@@ -66,4 +66,18 @@ class AuthController extends Controller
 
         return redirect()->route('login')->with('info', 'You have been logged out safely.');
     }
+
+    public function changePassword(Request $request)
+    {
+        $validated = $request->validate([
+            'current_password' => 'required|current_password',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        auth()->user()->update([
+            'password' => $validated['new_password'],
+        ]);
+
+        return back()->with('success', 'Your password has been updated successfully.');
+    }
 }

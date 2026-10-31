@@ -55,7 +55,7 @@ class Attendance extends Model
     public function scopeCurrentlyInside($query)
     {
         return $query->whereNull('check_out_time')
-                     ->whereDate('check_in_time', now()->toDateString());
+                     ->where('check_in_time', '>=', now()->subHours(16));
     }
 
     public function scopeToday($query)

@@ -70,8 +70,17 @@ class Member extends Model
     {
         return $this->hasOne(MemberSubscription::class)
             ->where('status', 'active')
+            ->whereDate('start_date', '<=', now()->toDateString())
             ->whereDate('end_date', '>=', now()->toDateString())
-            ->latestOfMany();
+            ->latestOfMany('end_date');
+    }
+
+    public function upcomingSubscription(): HasOne
+    {
+        return $this->hasOne(MemberSubscription::class)
+            ->where('status', 'active')
+            ->whereDate('start_date', '>', now()->toDateString())
+            ->oldestOfMany('start_date');
     }
 
     public function currentSubscription(): HasOne
@@ -142,9 +151,21 @@ class Member extends Model
 
         $activeSub = $this->activeSubscription;
         if (!$activeSub) {
-            // Check grace period from config
+            // Check if there is an upcoming subscription that hasn't started yet
+            $upcomingSub = $this->upcomingSubscription;
+            if ($upcomingSub) {
+                return [
+                    'allowed' => false,
+                    'message' => "Membership subscription starts on {$upcomingSub->start_date->format('M d, Y')}. Access is not yet valid today.",
+                ];
+            }
+
+            // Check grace period from config for expired subscription
             $graceDays = config('gym.allow_grace_period_days', 3);
-            $lastSub = $this->subscriptions()->orderBy('end_date', 'desc')->first();
+            $lastSub = $this->subscriptions()
+                ->whereDate('end_date', '<', now()->toDateString())
+                ->orderBy('end_date', 'desc')
+                ->first();
             
             if ($lastSub && Carbon::parse($lastSub->end_date)->addDays($graceDays)->isFuture()) {
                 $daysRemaining = Carbon::now()->diffInDays(Carbon::parse($lastSub->end_date)->addDays($graceDays), false);
@@ -191,20 +212,27 @@ class Member extends Model
         $year = date('Y');
         $prefix = "GYM-{$year}-";
 
-        $latest = static::where('member_code', 'like', $prefix . '%')
-            ->orderByRaw('LENGTH(member_code) DESC, member_code DESC')
-            ->value('member_code');
+        $lock = \Illuminate\Support\Facades\Cache::lock('member_code_seq_lock', 5);
+        try {
+            $lock->block(3);
 
-        $nextSeq = 1001;
-        if ($latest && preg_match('/-(\d+)$/', $latest, $matches)) {
-            $nextSeq = (int) $matches[1] + 1;
+            $latest = static::where('member_code', 'like', $prefix . '%')
+                ->orderByRaw('LENGTH(member_code) DESC, member_code DESC')
+                ->value('member_code');
+
+            $nextSeq = 1001;
+            if ($latest && preg_match('/-(\d+)$/', $latest, $matches)) {
+                $nextSeq = (int) $matches[1] + 1;
+            }
+
+            do {
+                $candidate = sprintf('%s%04d', $prefix, $nextSeq);
+                $nextSeq++;
+            } while (static::where('member_code', $candidate)->exists());
+
+            return $candidate;
+        } finally {
+            optional($lock)->release();
         }
-
-        do {
-            $candidate = sprintf('%s%04d', $prefix, $nextSeq);
-            $nextSeq++;
-        } while (static::where('member_code', $candidate)->exists());
-
-        return $candidate;
     }
 }

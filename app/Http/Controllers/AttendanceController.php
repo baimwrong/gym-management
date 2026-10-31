@@ -47,7 +47,7 @@ class AttendanceController extends Controller
     public function kiosk()
     {
         $today = Carbon::today()->toDateString();
-        $currentlyInsideCount = Attendance::whereDate('check_in_time', $today)->whereNull('check_out_time')->count();
+        $currentlyInsideCount = Attendance::currentlyInside()->count();
         $recentCheckIns = Attendance::with('member')
             ->whereDate('check_in_time', $today)
             ->latest('check_in_time')
@@ -73,48 +73,75 @@ class AttendanceController extends Controller
             ->first();
 
         if (!$member) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'status' => 'not_found',
+                    'message' => "No member found matching code '{$searchCode}'!",
+                ], 404);
+            }
             return back()->with('error', "No member found matching code '{$searchCode}'!");
         }
 
         // Action routing
         if ($request->action === 'check_out') {
             $result = $this->attendanceService->processCheckOut($member);
-            if ($result['success']) {
-                return back()->with('success', $result['message']);
-            }
-            return back()->with('warning', $result['message']);
+            return $this->formatProcessResponse($request, $result, $member);
         }
 
         if ($request->action === 'check_in') {
             $result = $this->attendanceService->processCheckIn($member, 'front_desk', auth()->user());
-            if ($result['success']) {
-                if (!empty($result['warning'])) {
-                    return back()->with('warning', $result['message']);
-                }
-                return back()->with('success', $result['message']);
-            }
-            return back()->with('error', $result['message']);
+            return $this->formatProcessResponse($request, $result, $member);
         }
 
         // Toggle action: if inside -> check out; if not inside -> check in
         $activeSession = Attendance::where('member_id', $member->id)
             ->whereNull('check_out_time')
-            ->whereDate('check_in_time', now()->toDateString())
+            ->where('check_in_time', '>=', now()->subHours(16))
+            ->latest('check_in_time')
             ->first();
 
         if ($activeSession) {
             $result = $this->attendanceService->processCheckOut($member);
-            return back()->with('success', $result['message']);
+            return $this->formatProcessResponse($request, $result, $member);
         } else {
             $result = $this->attendanceService->processCheckIn($member, 'front_desk', auth()->user());
-            if ($result['success']) {
-                if (!empty($result['warning'])) {
-                    return back()->with('warning', $result['message']);
-                }
-                return back()->with('success', $result['message']);
-            }
-            return back()->with('error', $result['message']);
+            return $this->formatProcessResponse($request, $result, $member);
         }
+    }
+
+    protected function formatProcessResponse(Request $request, array $result, Member $member)
+    {
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => $result['success'],
+                'status' => $result['status'] ?? ($result['success'] ? 'success' : 'error'),
+                'message' => $result['message'],
+                'warning' => !empty($result['warning']),
+                'member' => [
+                    'id' => $member->id,
+                    'code' => $member->member_code,
+                    'name' => $member->full_name,
+                    'status' => $member->status,
+                ],
+                'attendance' => isset($result['attendance']) ? [
+                    'id' => $result['attendance']->id,
+                    'check_in_time' => $result['attendance']->check_in_time ? $result['attendance']->check_in_time->format('h:i A') : null,
+                    'check_out_time' => $result['attendance']->check_out_time ? $result['attendance']->check_out_time->format('h:i A') : null,
+                    'duration' => $result['attendance']->duration_minutes,
+                ] : null,
+                'currently_inside' => Attendance::currentlyInside()->count(),
+            ], $result['success'] ? 200 : 422);
+        }
+
+        if ($result['success']) {
+            if (!empty($result['warning'])) {
+                return back()->with('warning', $result['message']);
+            }
+            return back()->with('success', $result['message']);
+        }
+
+        return back()->with('error', $result['message']);
     }
 
     public function checkOutById(Attendance $attendance)

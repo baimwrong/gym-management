@@ -101,20 +101,27 @@ class BillingService
         $year = date('Y');
         $basePattern = sprintf('%s%s-', $prefix, $year);
 
-        $latest = Invoice::where('invoice_number', 'like', $basePattern . '%')
-            ->orderByRaw('LENGTH(invoice_number) DESC, invoice_number DESC')
-            ->value('invoice_number');
+        $lock = \Illuminate\Support\Facades\Cache::lock('invoice_seq_lock', 5);
+        try {
+            $lock->block(3);
 
-        $nextSeq = 1;
-        if ($latest && preg_match('/-(\d+)$/', $latest, $matches)) {
-            $nextSeq = (int) $matches[1] + 1;
+            $latest = Invoice::where('invoice_number', 'like', $basePattern . '%')
+                ->orderByRaw('LENGTH(invoice_number) DESC, invoice_number DESC')
+                ->value('invoice_number');
+
+            $nextSeq = 1;
+            if ($latest && preg_match('/-(\d+)$/', $latest, $matches)) {
+                $nextSeq = (int) $matches[1] + 1;
+            }
+
+            do {
+                $candidate = sprintf('%s%05d', $basePattern, $nextSeq);
+                $nextSeq++;
+            } while (Invoice::where('invoice_number', $candidate)->exists());
+
+            return $candidate;
+        } finally {
+            optional($lock)->release();
         }
-
-        do {
-            $candidate = sprintf('%s%05d', $basePattern, $nextSeq);
-            $nextSeq++;
-        } while (Invoice::where('invoice_number', $candidate)->exists());
-
-        return $candidate;
     }
 }

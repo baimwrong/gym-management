@@ -166,10 +166,13 @@ class ImportController extends Controller
      */
     public function importMembers(Request $request)
     {
+        @set_time_limit(300);
+
         $request->validate([
             'csv_file' => 'required|file|mimes:csv,txt|max:10240',
             'default_plan_id' => 'nullable|exists:membership_plans,id',
-            'payment_method' => 'required|string',
+            'payment_method' => 'nullable|string',
+            'create_invoices' => 'nullable|boolean',
         ]);
 
         $file = $request->file('csv_file');
@@ -288,10 +291,29 @@ class ImportController extends Controller
                     $plan = ($planSlug && isset($allPlans[$planSlug])) ? $allPlans[$planSlug] : $defaultPlan;
 
                     if ($plan && $status === 'active') {
-                        $this->billingService->createSubscription($member, $plan, [
-                            'payment_method' => $request->payment_method ?? 'cash',
-                            'start_date' => $joinedDate,
-                        ]);
+                        if ($request->boolean('create_invoices')) {
+                            $this->billingService->createSubscription($member, $plan, [
+                                'payment_method' => $request->payment_method ?? 'cash',
+                                'start_date' => $joinedDate,
+                            ]);
+                        } else {
+                            $endDate = match ($plan->duration_type) {
+                                'days' => Carbon::parse($joinedDate)->addDays($plan->duration_count),
+                                'years' => Carbon::parse($joinedDate)->addYears($plan->duration_count),
+                                default => Carbon::parse($joinedDate)->addMonths($plan->duration_count),
+                            };
+
+                            \App\Models\MemberSubscription::create([
+                                'member_id' => $member->id,
+                                'plan_id' => $plan->id,
+                                'start_date' => $joinedDate,
+                                'end_date' => $endDate->toDateString(),
+                                'status' => 'active',
+                                'price_paid' => $plan->price,
+                                'remaining_pt_sessions' => $plan->includes_pt_sessions,
+                                'notes' => 'Imported via CSV Data Ingestion (Legacy pass, no new invoice generated)',
+                            ]);
+                        }
                     }
 
                     $importedCount++;
@@ -319,6 +341,8 @@ class ImportController extends Controller
      */
     public function importProducts(Request $request)
     {
+        @set_time_limit(300);
+
         $request->validate([
             'csv_file' => 'required|file|mimes:csv,txt|max:10240',
         ]);
@@ -420,6 +444,8 @@ class ImportController extends Controller
      */
     public function importEquipment(Request $request)
     {
+        @set_time_limit(300);
+
         $request->validate([
             'csv_file' => 'required|file|mimes:csv,txt|max:10240',
         ]);

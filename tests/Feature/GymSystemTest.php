@@ -428,4 +428,325 @@ class GymSystemTest extends TestCase
         $this->assertStringContainsString('GYM-2026-1001', $barcode);
         $this->assertStringContainsString('</svg>', $barcode);
     }
+
+    public function test_midnight_turnstile_checkin_and_checkout_across_days(): void
+    {
+        $plan = MembershipPlan::create([
+            'name' => 'Unlimited Pass',
+            'slug' => 'unlimited-pass',
+            'duration_type' => 'months',
+            'duration_count' => 1,
+            'price' => 60,
+            'signup_fee' => 0,
+            'includes_classes' => true,
+            'is_active' => true,
+        ]);
+
+        $member = Member::create([
+            'member_code' => 'GYM-2026-9050',
+            'first_name' => 'Night',
+            'last_name' => 'Owl',
+            'gender' => 'male',
+            'barcode_value' => 'GYM-2026-9050',
+            'status' => 'active',
+            'joined_date' => now()->toDateString(),
+        ]);
+
+        MemberSubscription::create([
+            'member_id' => $member->id,
+            'plan_id' => $plan->id,
+            'start_date' => now()->subDays(5)->toDateString(),
+            'end_date' => now()->addMonth()->toDateString(),
+            'price_paid' => 60,
+            'status' => 'active',
+        ]);
+
+        // Checked in at 11:30 PM yesterday
+        $checkInTime = Carbon::now()->yesterday()->setTime(23, 30, 0);
+        $attendance = Attendance::create([
+            'member_id' => $member->id,
+            'check_in_time' => $checkInTime,
+            'check_in_method' => 'kiosk',
+            'check_out_time' => null,
+        ]);
+
+        // Scanning out at 00:30 AM today (1 hour later across midnight boundary)
+        Carbon::setTestNow(Carbon::now()->today()->setTime(0, 30, 0));
+
+        $response = $this->actingAs($this->adminUser)
+            ->post(route('attendance.process'), [
+                'code' => 'GYM-2026-9050',
+                'action' => 'toggle',
+            ]);
+
+        $response->assertSessionHas('success');
+        $this->assertStringContainsString('Checked out successfully', session('success'));
+
+        $attendance->refresh();
+        $this->assertNotNull($attendance->check_out_time);
+        $this->assertEquals(60, $attendance->duration_minutes);
+
+        // Verify no second duplicate checkin record was created
+        $this->assertEquals(1, Attendance::where('member_id', $member->id)->count());
+
+        Carbon::setTestNow(); // Reset test time
+    }
+
+    public function test_future_start_date_subscription_rejected_at_turnstile(): void
+    {
+        $plan = MembershipPlan::create([
+            'name' => 'Future Plan',
+            'slug' => 'future-plan',
+            'duration_type' => 'months',
+            'duration_count' => 1,
+            'price' => 50,
+            'signup_fee' => 0,
+            'is_active' => true,
+        ]);
+
+        $member = Member::create([
+            'member_code' => 'GYM-2026-9060',
+            'first_name' => 'Early',
+            'last_name' => 'Bird',
+            'gender' => 'male',
+            'barcode_value' => 'GYM-2026-9060',
+            'status' => 'active',
+            'joined_date' => now()->toDateString(),
+        ]);
+
+        // Subscription starts 5 days from now
+        MemberSubscription::create([
+            'member_id' => $member->id,
+            'plan_id' => $plan->id,
+            'start_date' => now()->addDays(5)->toDateString(),
+            'end_date' => now()->addDays(35)->toDateString(),
+            'price_paid' => 50,
+            'status' => 'active',
+        ]);
+
+        // Attempt scan today
+        $response = $this->actingAs($this->adminUser)
+            ->post(route('attendance.process'), [
+                'code' => 'GYM-2026-9060',
+                'action' => 'check_in',
+            ]);
+
+        $response->assertSessionHas('error');
+        $this->assertStringContainsString('starts on', session('error'));
+        $this->assertDatabaseMissing('attendances', ['member_id' => $member->id]);
+    }
+
+    public function test_locker_collision_and_billing_invoice(): void
+    {
+        $locker1 = \App\Models\Locker::create([
+            'locker_number' => 'L-101',
+            'zone' => 'Main Wing',
+            'status' => 'available',
+            'rental_fee_monthly' => 20.00,
+        ]);
+
+        $locker2 = \App\Models\Locker::create([
+            'locker_number' => 'L-102',
+            'zone' => 'Main Wing',
+            'status' => 'available',
+            'rental_fee_monthly' => 20.00,
+        ]);
+
+        $member1 = Member::create([
+            'member_code' => 'GYM-2026-9070',
+            'first_name' => 'Sam',
+            'last_name' => 'Locker',
+            'gender' => 'male',
+            'status' => 'active',
+        ]);
+
+        $member2 = Member::create([
+            'member_code' => 'GYM-2026-9071',
+            'first_name' => 'Kelly',
+            'last_name' => 'Locker',
+            'gender' => 'female',
+            'status' => 'active',
+        ]);
+
+        // Assign locker 1 to member 1 for 3 months
+        $response = $this->actingAs($this->adminUser)
+            ->post(route('lockers.assign', $locker1), [
+                'member_id' => $member1->id,
+                'duration_months' => 3,
+                'payment_method' => 'cash',
+            ]);
+
+        $response->assertSessionHas('success');
+        $this->assertEquals('occupied', $locker1->fresh()->status);
+        $this->assertEquals($member1->id, $locker1->fresh()->assigned_member_id);
+
+        // Verify billing invoice was generated ($20 x 3 = $60)
+        $invoice = Invoice::where('invoice_type', 'locker_rental')->where('member_id', $member1->id)->first();
+        $this->assertNotNull($invoice);
+        $this->assertEquals(60.00, $invoice->total_amount);
+
+        // Attempt to assign locker 1 again to member 2 -> should be rejected (collision)
+        $resCollision = $this->actingAs($this->adminUser)
+            ->post(route('lockers.assign', $locker1), [
+                'member_id' => $member2->id,
+                'duration_months' => 1,
+            ]);
+        $resCollision->assertSessionHas('error');
+
+        // Attempt to assign locker 2 to member 1 (who already has locker 1) -> should be rejected
+        $resDuplicate = $this->actingAs($this->adminUser)
+            ->post(route('lockers.assign', $locker2), [
+                'member_id' => $member1->id,
+                'duration_months' => 1,
+            ]);
+        $resDuplicate->assertSessionHas('error');
+    }
+
+    public function test_trainer_assignment_deducts_plan_pt_quota(): void
+    {
+        $trainerUser = User::create([
+            'name' => 'Coach Dan',
+            'email' => 'coach.dan@testgym.local',
+            'password' => 'secret123',
+            'role' => 'trainer',
+            'status' => 'active',
+        ]);
+
+        $trainer = \App\Models\Trainer::create([
+            'user_id' => $trainerUser->id,
+            'full_name' => 'Coach Dan',
+            'specialties' => ['strength'],
+            'hourly_rate' => 60,
+            'is_available' => true,
+        ]);
+
+        $plan = MembershipPlan::create([
+            'name' => 'VIP Coach Pass',
+            'slug' => 'vip-coach-pass',
+            'duration_type' => 'months',
+            'duration_count' => 1,
+            'price' => 150,
+            'includes_pt_sessions' => 5,
+            'is_active' => true,
+        ]);
+
+        $member = Member::create([
+            'member_code' => 'GYM-2026-9080',
+            'first_name' => 'Leo',
+            'last_name' => 'Trainee',
+            'gender' => 'male',
+            'status' => 'active',
+        ]);
+
+        $sub = MemberSubscription::create([
+            'member_id' => $member->id,
+            'plan_id' => $plan->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addMonth()->toDateString(),
+            'price_paid' => 150,
+            'remaining_pt_sessions' => 5,
+            'status' => 'active',
+        ]);
+
+        // Assign 2 sessions from plan quota
+        $response = $this->actingAs($this->adminUser)
+            ->post(route('trainers.assign', $trainer), [
+                'member_id' => $member->id,
+                'package_name' => 'VIP Orientation Pack',
+                'total_sessions' => 2,
+                'start_date' => now()->toDateString(),
+                'use_plan_sessions' => 1,
+            ]);
+
+        $response->assertSessionHas('success');
+        $this->assertEquals(3, $sub->fresh()->remaining_pt_sessions);
+    }
+
+    public function test_rbac_restrictions_for_trainer_role(): void
+    {
+        $trainerUser = User::create([
+            'name' => 'Coach Sara',
+            'email' => 'coach.sara@testgym.local',
+            'password' => 'secret123',
+            'role' => 'trainer',
+            'status' => 'active',
+        ]);
+
+        // Trainer cannot access Settings
+        $resSettings = $this->actingAs($trainerUser)->get(route('settings.index'));
+        $resSettings->assertStatus(403);
+
+        // Trainer cannot access Financial Reports
+        $resReports = $this->actingAs($trainerUser)->get(route('reports.index'));
+        $resReports->assertStatus(403);
+
+        // Trainer cannot access Bulk Import Center
+        $resImport = $this->actingAs($trainerUser)->get(route('import.index'));
+        $resImport->assertStatus(403);
+
+        // Trainer cannot access POS Register
+        $resPos = $this->actingAs($trainerUser)->get(route('pos.index'));
+        $resPos->assertStatus(403);
+    }
+
+    public function test_ajax_kiosk_json_response(): void
+    {
+        $plan = MembershipPlan::create([
+            'name' => 'Digital Pass',
+            'slug' => 'digital-pass',
+            'duration_type' => 'months',
+            'duration_count' => 1,
+            'price' => 40,
+            'is_active' => true,
+        ]);
+
+        $member = Member::create([
+            'member_code' => 'GYM-2026-9090',
+            'first_name' => 'Digital',
+            'last_name' => 'Scanner',
+            'gender' => 'male',
+            'barcode_value' => 'GYM-2026-9090',
+            'status' => 'active',
+            'joined_date' => now()->toDateString(),
+        ]);
+
+        MemberSubscription::create([
+            'member_id' => $member->id,
+            'plan_id' => $plan->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addMonth()->toDateString(),
+            'price_paid' => 40,
+            'status' => 'active',
+        ]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->postJson(route('attendance.process'), [
+                'code' => 'GYM-2026-9090',
+                'action' => 'toggle',
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'status' => 'success',
+            'member' => [
+                'code' => 'GYM-2026-9090',
+                'name' => 'Digital Scanner',
+            ],
+        ]);
+        $response->assertJsonStructure(['currently_inside', 'attendance']);
+    }
+
+    public function test_authenticated_user_can_change_password(): void
+    {
+        $response = $this->actingAs($this->adminUser)
+            ->post(route('profile.password'), [
+                'current_password' => 'secret123',
+                'new_password' => 'brandnewpassword123',
+                'new_password_confirmation' => 'brandnewpassword123',
+            ]);
+
+        $response->assertSessionHas('success');
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('brandnewpassword123', $this->adminUser->fresh()->password));
+    }
 }

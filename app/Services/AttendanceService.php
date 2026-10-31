@@ -25,10 +25,11 @@ class AttendanceService
             ];
         }
 
-        // Check if member is already checked in and has not checked out yet today
+        // Check if member is already checked in and has not checked out yet (within active 16-hour window)
         $existing = Attendance::where('member_id', $member->id)
             ->whereNull('check_out_time')
-            ->whereDate('check_in_time', now()->toDateString())
+            ->where('check_in_time', '>=', now()->subHours(16))
+            ->latest('check_in_time')
             ->first();
 
         if ($existing) {

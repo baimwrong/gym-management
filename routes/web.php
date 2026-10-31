@@ -35,9 +35,10 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
-    // Dashboard
+    // Dashboard & Profile
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::post('/profile/change-password', [AuthController::class, 'changePassword'])->name('profile.password');
 
     // Attendance & Kiosk (Front Desk / Fast Check-in)
     Route::prefix('attendance')->name('attendance.')->group(function () {
@@ -50,15 +51,18 @@ Route::middleware('auth')->group(function () {
     // Members Management
     Route::prefix('members')->name('members.')->group(function () {
         Route::get('/', [MemberController::class, 'index'])->name('index');
-        Route::get('/create', [MemberController::class, 'create'])->name('create');
-        Route::post('/', [MemberController::class, 'store'])->name('store');
         Route::get('/{member}', [MemberController::class, 'show'])->name('show');
-        Route::get('/{member}/edit', [MemberController::class, 'edit'])->name('edit');
-        Route::put('/{member}', [MemberController::class, 'update'])->name('update');
-        Route::post('/{member}/metrics', [MemberController::class, 'storeMetric'])->name('metrics.store');
-        Route::post('/{member}/renew', [MemberController::class, 'renew'])->name('renew');
-        Route::post('/{member}/freeze', [MemberController::class, 'freeze'])->name('freeze');
         Route::get('/{member}/id-card', [MemberController::class, 'idCard'])->name('id-card');
+        Route::post('/{member}/metrics', [MemberController::class, 'storeMetric'])->name('metrics.store');
+
+        Route::middleware('role:admin,manager,receptionist')->group(function () {
+            Route::get('/create', [MemberController::class, 'create'])->name('create');
+            Route::post('/', [MemberController::class, 'store'])->name('store');
+            Route::get('/{member}/edit', [MemberController::class, 'edit'])->name('edit');
+            Route::put('/{member}', [MemberController::class, 'update'])->name('update');
+            Route::post('/{member}/renew', [MemberController::class, 'renew'])->name('renew');
+            Route::post('/{member}/freeze', [MemberController::class, 'freeze'])->name('freeze');
+        });
     });
 
     // Membership Plans
@@ -77,8 +81,15 @@ Route::middleware('auth')->group(function () {
     Route::prefix('trainers')->name('trainers.')->group(function () {
         Route::get('/', [TrainerController::class, 'index'])->name('index');
         Route::get('/{trainer}', [TrainerController::class, 'show'])->name('show');
-        Route::post('/{trainer}/assign', [TrainerController::class, 'assignClient'])->name('assign');
-        Route::post('/assignment/{assignment}/log-session', [TrainerController::class, 'logSession'])->name('log-session');
+        
+        Route::middleware('role:admin,manager,receptionist')->group(function () {
+            Route::post('/{trainer}/assign', [TrainerController::class, 'assignClient'])->name('assign');
+        });
+
+        Route::middleware('role:admin,manager,trainer')->group(function () {
+            Route::post('/assignment/{assignment}/log-session', [TrainerController::class, 'logSession'])->name('log-session');
+        });
+
         Route::middleware('role:admin,manager')->group(function () {
             Route::post('/', [TrainerController::class, 'store'])->name('store');
             Route::put('/{trainer}', [TrainerController::class, 'update'])->name('update');
@@ -89,9 +100,16 @@ Route::middleware('auth')->group(function () {
     Route::prefix('classes')->name('classes.')->group(function () {
         Route::get('/', [FitnessClassController::class, 'index'])->name('index');
         Route::get('/{fitnessClass}', [FitnessClassController::class, 'show'])->name('show');
-        Route::post('/{fitnessClass}/book', [FitnessClassController::class, 'book'])->name('book');
-        Route::post('/booking/{booking}/attendance', [FitnessClassController::class, 'markAttendance'])->name('mark-attendance');
-        Route::delete('/booking/{booking}', [FitnessClassController::class, 'cancelBooking'])->name('cancel');
+        
+        Route::middleware('role:admin,manager,receptionist')->group(function () {
+            Route::post('/{fitnessClass}/book', [FitnessClassController::class, 'book'])->name('book');
+            Route::delete('/booking/{booking}', [FitnessClassController::class, 'cancelBooking'])->name('cancel');
+        });
+
+        Route::middleware('role:admin,manager,trainer,receptionist')->group(function () {
+            Route::post('/booking/{booking}/attendance', [FitnessClassController::class, 'markAttendance'])->name('mark-attendance');
+        });
+
         Route::middleware('role:admin,manager')->group(function () {
             Route::post('/', [FitnessClassController::class, 'store'])->name('store');
         });
@@ -100,23 +118,29 @@ Route::middleware('auth')->group(function () {
     // Workout Plans
     Route::prefix('workouts')->name('workouts.')->group(function () {
         Route::get('/', [WorkoutPlanController::class, 'index'])->name('index');
-        Route::get('/create', [WorkoutPlanController::class, 'create'])->name('create');
-        Route::post('/', [WorkoutPlanController::class, 'store'])->name('store');
         Route::get('/{workout}', [WorkoutPlanController::class, 'show'])->name('show');
-        Route::post('/{workout}/assign', [WorkoutPlanController::class, 'assign'])->name('assign');
+
+        Route::middleware('role:admin,manager,trainer')->group(function () {
+            Route::get('/create', [WorkoutPlanController::class, 'create'])->name('create');
+            Route::post('/', [WorkoutPlanController::class, 'store'])->name('store');
+            Route::post('/{workout}/assign', [WorkoutPlanController::class, 'assign'])->name('assign');
+        });
     });
 
     // Diet Plans
     Route::prefix('diets')->name('diets.')->group(function () {
         Route::get('/', [DietPlanController::class, 'index'])->name('index');
-        Route::get('/create', [DietPlanController::class, 'create'])->name('create');
-        Route::post('/', [DietPlanController::class, 'store'])->name('store');
         Route::get('/{diet}', [DietPlanController::class, 'show'])->name('show');
-        Route::post('/{diet}/assign', [DietPlanController::class, 'assign'])->name('assign');
+
+        Route::middleware('role:admin,manager,trainer')->group(function () {
+            Route::get('/create', [DietPlanController::class, 'create'])->name('create');
+            Route::post('/', [DietPlanController::class, 'store'])->name('store');
+            Route::post('/{diet}/assign', [DietPlanController::class, 'assign'])->name('assign');
+        });
     });
 
     // Point of Sale (POS) & Pro Shop Inventory
-    Route::prefix('pos')->name('pos.')->group(function () {
+    Route::prefix('pos')->name('pos.')->middleware('role:admin,manager,receptionist')->group(function () {
         Route::get('/', [PosController::class, 'index'])->name('index');
         Route::post('/checkout', [PosController::class, 'checkout'])->name('checkout');
         Route::get('/products', [PosController::class, 'products'])->name('products');
